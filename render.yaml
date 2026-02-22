@@ -43,11 +43,11 @@ services:
         value: "10485760"
 
   # Frontend Static Site
-  - type: web
+  - type: static
     name: scf-web
-    runtime: static
-    plan: free
-   
+    // runtime: static
+    // plan: free
+    // region: singapore
     rootDir: .
     buildCommand: >-
       npm install -g pnpm@9 &&
