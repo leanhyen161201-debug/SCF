@@ -43,9 +43,9 @@ services:
         value: "10485760"
 
   # Frontend Static Site
-  - type: static
+  - type: web
     name: scf-web
-    // runtime: static
+    runtime: static
     // plan: free
     // region: singapore
     rootDir: .
