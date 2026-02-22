@@ -1,0 +1,19 @@
+{
+  "name": "scf-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:server": "pnpm --filter @scf/server dev",
+    "dev:web": "pnpm --filter @scf/web dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "db:migrate": "pnpm --filter @scf/server prisma migrate dev",
+    "db:seed": "pnpm --filter @scf/server prisma db seed",
+    "db:studio": "pnpm --filter @scf/server prisma studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0",
+    "typescript": "^5.5.0"
+  },
+  "packageManager": "pnpm@9.1.0"
+}

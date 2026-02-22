@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== User & Auth ==========
+model User {
+  id           String     @id @default(uuid())
+  username     String     @unique
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole   @default(OPERATOR)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  RISK_MANAGER
+  CREDIT_OFFICER
+  OPERATOR
+}
+
+enum UserStatus {
+  ACTIVE
+  FROZEN
+  DISABLED
+}
+
+// ========== Enterprise ==========
+model Enterprise {
+  id                String           @id @default(uuid())
+  name              String
+  unifiedCode       String           @unique @map("unified_code")
+  contactPerson     String           @map("contact_person")
+  contactPhone      String           @map("contact_phone")
+  address           String?
+  industry          String?
+  registeredCapital Decimal?         @map("registered_capital") @db.Decimal(15, 2)
+  status            EnterpriseStatus @default(ACTIVE)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  creditApplications CreditApplication[]
+  orders             Order[]
+  creditLimit        CreditLimit?
+  riskEvents         RiskEvent[]
+  ecommerceFlows     EcommerceFlow[]
+
+  @@map("enterprises")
+}
+
+enum EnterpriseStatus {
+  ACTIVE
+  FROZEN
+  BLACKLISTED
+}
+
+// ========== Credit Application ==========
+model CreditApplication {
+  id              String       @id @default(uuid())
+  applicationNo   String       @unique @map("application_no")
+  enterpriseId    String       @map("enterprise_id")
+  requestedAmount Decimal      @map("requested_amount") @db.Decimal(15, 2)
+  approvedAmount  Decimal?     @map("approved_amount") @db.Decimal(15, 2)
+  status          CreditStatus @default(PENDING)
+  riskScore       Float?       @map("risk_score")
+  reviewerId      String?      @map("reviewer_id")
+  reviewNote      String?      @map("review_note")
+  submittedAt     DateTime     @default(now()) @map("submitted_at")
+  reviewedAt      DateTime?    @map("reviewed_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+  documents  Document[]
+
+  @@index([enterpriseId])
+  @@index([status])
+  @@map("credit_applications")
+}
+
+enum CreditStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// ========== Order ==========
+model Order {
+  id              String           @id @default(uuid())
+  orderNo         String           @unique @map("order_no")
+  enterpriseId    String           @map("enterprise_id")
+  amount          Decimal          @db.Decimal(15, 2)
+  status          OrderStatus      @default(CREATED)
+  financingAmount Decimal?         @map("financing_amount") @db.Decimal(15, 2)
+  financingStatus FinancingStatus? @map("financing_status")
+  dueDate         DateTime?        @map("due_date")
+  repaidAt        DateTime?        @map("repaid_at")
+  overdueDays     Int              @default(0) @map("overdue_days")
+  isReturned      Boolean          @default(false) @map("is_returned")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+  documents  Document[]
+
+  @@index([enterpriseId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  CREATED
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  RETURNED
+  CANCELLED
+}
+
+enum FinancingStatus {
+  NONE
+  APPLIED
+  APPROVED
+  DISBURSED
+  REPAID
+  OVERDUE
+}
+
+// ========== Document ==========
+model Document {
+  id              String         @id @default(uuid())
+  documentNo      String         @unique @map("document_no")
+  type            DocumentType
+  orderId         String?        @map("order_id")
+  creditAppId     String?        @map("credit_app_id")
+  fileName        String         @map("file_name")
+  fileUrl         String         @map("file_url")
+  fileSize        Int            @map("file_size")
+  mimeType        String         @map("mime_type")
+  extractedData   Json?          @map("extracted_data")
+  extractedAmount Decimal?       @map("extracted_amount") @db.Decimal(15, 2)
+  extractedDate   DateTime?      @map("extracted_date")
+  extractedPartyA String?        @map("extracted_party_a")
+  extractedPartyB String?        @map("extracted_party_b")
+  extractedGoods  String?        @map("extracted_goods")
+  matchStatus     MatchStatus    @default(PENDING) @map("match_status")
+  matchResult     Json?          @map("match_result")
+  matchScore      Float?         @map("match_score")
+  status          DocumentStatus @default(UPLOADED)
+  reviewNote      String?        @map("review_note")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  order     Order?             @relation(fields: [orderId], references: [id])
+  creditApp CreditApplication? @relation(fields: [creditAppId], references: [id])
+
+  @@index([orderId])
+  @@index([creditAppId])
+  @@index([type])
+  @@index([status])
+  @@map("documents")
+}
+
+enum DocumentType {
+  CONTRACT
+  INVOICE
+  LOGISTICS_BILL
+  OTHER
+}
+
+enum DocumentStatus {
+  UPLOADED
+  EXTRACTING
+  EXTRACTED
+  REVIEWING
+  APPROVED
+  REJECTED
+}
+
+enum MatchStatus {
+  PENDING
+  MATCHED
+  MISMATCHED
+  PARTIAL
+}
+
+// ========== Risk Event ==========
+model RiskEvent {
+  id             String          @id @default(uuid())
+  eventNo        String          @unique @map("event_no")
+  enterpriseId   String          @map("enterprise_id")
+  type           RiskEventType
+  severity       RiskSeverity
+  description    String
+  triggerRule     String          @map("trigger_rule")
+  triggerValue   String          @map("trigger_value")
+  thresholdValue String          @map("threshold_value")
+  action         RiskAction
+  status         RiskEventStatus @default(PENDING)
+  handledBy      String?         @map("handled_by")
+  handledAt      DateTime?       @map("handled_at")
+  handleNote     String?         @map("handle_note")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+
+  @@index([enterpriseId])
+  @@index([type])
+  @@index([severity])
+  @@index([status])
+  @@map("risk_events")
+}
+
+enum RiskEventType {
+  OVERDUE
+  HIGH_RETURN_RATE
+  AMOUNT_MISMATCH
+  BLACKLIST_HIT
+  ABNORMAL_FLOW
+}
+
+enum RiskSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskEventStatus {
+  PENDING
+  PROCESSING
+  RESOLVED
+  ESCALATED
+}
+
+enum RiskAction {
+  ALERT
+  FREEZE
+  BLOCK
+  REJECT
+  MANUAL_REVIEW
+}
+
+// ========== Credit Limit ==========
+model CreditLimit {
+  id               String   @id @default(uuid())
+  enterpriseId     String   @unique @map("enterprise_id")
+  totalLimit       Decimal  @map("total_limit") @db.Decimal(15, 2)
+  usedLimit        Decimal  @default(0) @map("used_limit") @db.Decimal(15, 2)
+  availableLimit   Decimal  @map("available_limit") @db.Decimal(15, 2)
+  suggestedLimit   Decimal? @map("suggested_limit") @db.Decimal(15, 2)
+  algorithm        String?
+  calculationData  Json?    @map("calculation_data")
+  lastCalculatedAt DateTime? @map("last_calculated_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  enterprise  Enterprise        @relation(fields: [enterpriseId], references: [id])
+  adjustments LimitAdjustment[]
+
+  @@map("credit_limits")
+}
+
+model LimitAdjustment {
+  id            String   @id @default(uuid())
+  creditLimitId String   @map("credit_limit_id")
+  previousLimit Decimal  @map("previous_limit") @db.Decimal(15, 2)
+  newLimit      Decimal  @map("new_limit") @db.Decimal(15, 2)
+  reason        String
+  adjustedBy    String   @map("adjusted_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  creditLimit CreditLimit @relation(fields: [creditLimitId], references: [id])
+
+  @@index([creditLimitId])
+  @@map("limit_adjustments")
+}
+
+// ========== E-commerce Flow ==========
+model EcommerceFlow {
+  id              String   @id @default(uuid())
+  enterpriseId    String   @map("enterprise_id")
+  platform        String
+  transactionDate DateTime @map("transaction_date")
+  amount          Decimal  @db.Decimal(15, 2)
+  transactionType String   @map("transaction_type")
+  orderRef        String?  @map("order_ref")
+  syncedAt        DateTime @default(now()) @map("synced_at")
+
+  enterprise Enterprise @relation(fields: [enterpriseId], references: [id])
+
+  @@index([enterpriseId, transactionDate])
+  @@map("ecommerce_flows")
+}
