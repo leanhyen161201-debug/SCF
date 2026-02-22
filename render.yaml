@@ -1,0 +1,64 @@
+databases:
+  - name: scf-db
+    plan: free
+    databaseName: scf
+    user: scf_user
+    region: singapore
+
+services:
+  # Backend API Service
+  - type: web
+    name: scf-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: .
+    buildCommand: >-
+      npm install -g pnpm@9 &&
+      pnpm install &&
+      pnpm --filter @scf/shared build &&
+      cd apps/server &&
+      npx prisma generate &&
+      npx prisma db push &&
+      pnpm build
+    startCommand: node apps/server/dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: scf-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "15m"
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: "7d"
+      - key: CORS_ORIGIN
+        value: https://scf-web.onrender.com
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: MAX_FILE_SIZE
+        value: "10485760"
+
+  # Frontend Static Site
+  - type: web
+    name: scf-web
+    runtime: static
+    plan: free
+    region: singapore
+    rootDir: .
+    buildCommand: >-
+      npm install -g pnpm@9 &&
+      pnpm install &&
+      pnpm --filter @scf/shared build &&
+      pnpm --filter @scf/web build
+    staticPublishPath: apps/web/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://scf-api.onrender.com/api
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
