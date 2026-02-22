@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { orderService } from '../services/order.service';
 import { sendSuccess, sendPaginated, parsePagination } from '../utils/helpers';
+import { OrderStatus } from '@scf/shared';
 
 const createSchema = z.object({
   enterpriseId: z.string().uuid(),
@@ -51,7 +52,7 @@ export const orderController = {
   async updateStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const { status } = updateStatusSchema.parse(req.body);
-      const data = await orderService.updateStatus(req.params.id, status);
+      const data = await orderService.updateStatus(req.params.id, status as OrderStatus);
       sendSuccess(res, data);
     } catch (error) {
       next(error);
