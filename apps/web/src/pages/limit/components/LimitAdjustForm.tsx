@@ -53,8 +53,8 @@ export default function LimitAdjustForm({ open, onClose, enterpriseId, currentLi
         >
           <InputNumber
             style={{ width: '100%' }}
-            min={0}
-            step={10000}
+            min={0 as number}
+            step={10000 as number}
             formatter={(value) => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
             parser={(value) => value!.replace(/¥\s?|(,*)/g, '') as unknown as number}
           />

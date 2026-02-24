@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { OrderStatus } from '@scf/shared';
 import { orderService } from '../services/order.service';
 import { sendSuccess, sendPaginated, parsePagination } from '../utils/helpers';
 
@@ -10,7 +11,7 @@ const createSchema = z.object({
 });
 
 const updateStatusSchema = z.object({
-  status: z.enum(['CREATED', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURNED', 'CANCELLED']),
+  status: z.nativeEnum(OrderStatus),
 });
 
 export const orderController = {

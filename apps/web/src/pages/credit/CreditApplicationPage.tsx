@@ -66,7 +66,7 @@ export default function CreditApplicationPage() {
             <InputNumber
               style={{ width: '100%' }}
               placeholder="请输入申请金额"
-              min={1}
+              min={1 as number}
               precision={2}
               formatter={(value) =>
                 `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')

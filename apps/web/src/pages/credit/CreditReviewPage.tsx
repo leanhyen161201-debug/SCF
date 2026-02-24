@@ -154,7 +154,7 @@ export default function CreditReviewPage() {
               <InputNumber
                 style={{ width: '100%' }}
                 placeholder="请输入批准金额（留空则使用申请金额）"
-                min={0}
+                min={0 as number}
                 precision={2}
                 formatter={(value) =>
                   `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')

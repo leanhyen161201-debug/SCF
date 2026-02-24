@@ -1,5 +1,5 @@
 import { prisma } from './base.repository';
-import { DocumentType, DocumentStatus, MatchStatus } from '@prisma/client';
+import { Prisma, DocumentType, DocumentStatus, MatchStatus } from '@prisma/client';
 
 export const documentRepository = {
   async findAll(skip: number, take: number, filters?: {
@@ -55,8 +55,13 @@ export const documentRepository = {
     return prisma.document.update({
       where: { id },
       data: {
-        ...data,
+        extractedData: data.extractedData as Prisma.InputJsonValue,
         extractedAmount: data.extractedAmount,
+        extractedDate: data.extractedDate,
+        extractedPartyA: data.extractedPartyA,
+        extractedPartyB: data.extractedPartyB,
+        extractedGoods: data.extractedGoods,
+        status: data.status,
       },
     });
   },
@@ -66,7 +71,14 @@ export const documentRepository = {
     matchResult: Record<string, unknown>;
     matchScore: number;
   }) {
-    return prisma.document.update({ where: { id }, data });
+    return prisma.document.update({
+      where: { id },
+      data: {
+        matchStatus: data.matchStatus,
+        matchResult: data.matchResult as Prisma.InputJsonValue,
+        matchScore: data.matchScore,
+      },
+    });
   },
 
   async updateStatus(id: string, status: DocumentStatus) {
