@@ -42,7 +42,7 @@ export default function ReviewWorkflow({ applicationId, requestedAmount }: Revie
                 initialValue={requestedAmount}
                 rules={[{ required: true }]}
               >
-                <InputNumber
+                <InputNumber<number>
                   style={{ width: '100%' }}
                   min={0}
                   step={10000}

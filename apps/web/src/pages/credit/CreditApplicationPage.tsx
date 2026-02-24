@@ -63,7 +63,7 @@ export default function CreditApplicationPage() {
               },
             ]}
           >
-            <InputNumber
+            <InputNumber<number>
               style={{ width: '100%' }}
               placeholder="请输入申请金额"
               min={1}

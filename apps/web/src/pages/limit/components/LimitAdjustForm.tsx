@@ -51,7 +51,7 @@ export default function LimitAdjustForm({ open, onClose, enterpriseId, currentLi
           label="New Limit"
           rules={[{ required: true, message: 'Please enter new limit' }]}
         >
-          <InputNumber
+          <InputNumber<number>
             style={{ width: '100%' }}
             min={0}
             step={10000}

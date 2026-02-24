@@ -151,7 +151,7 @@ export default function CreditReviewPage() {
         <Card title="审核操作" style={{ marginBottom: 24 }}>
           <Form<ReviewFormValues> form={form} layout="vertical">
             <Form.Item label="批准金额 (元)" name="approvedAmount">
-              <InputNumber
+              <InputNumber<number>
                 style={{ width: '100%' }}
                 placeholder="请输入批准金额（留空则使用申请金额）"
                 min={0}

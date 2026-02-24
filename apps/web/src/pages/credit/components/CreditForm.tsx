@@ -50,7 +50,7 @@ export default function CreditForm({ enterprises = MOCK_ENTERPRISES }: CreditFor
           label="Requested Amount (CNY)"
           rules={[{ required: true, message: 'Please enter amount' }]}
         >
-          <InputNumber
+          <InputNumber<number>
             style={{ width: '100%' }}
             min={10000}
             step={10000}
