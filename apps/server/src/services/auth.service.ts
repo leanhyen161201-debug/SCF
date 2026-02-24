@@ -28,11 +28,11 @@ export const authService = {
     };
 
     const accessToken = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn,
+      expiresIn: config.jwt.expiresIn as unknown as number,
     });
 
     const refreshToken = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.refreshExpiresIn,
+      expiresIn: config.jwt.refreshExpiresIn as unknown as number,
     });
 
     return {
@@ -88,7 +88,7 @@ export const authService = {
       };
 
       const accessToken = jwt.sign(newPayload, config.jwt.secret, {
-        expiresIn: config.jwt.expiresIn,
+        expiresIn: config.jwt.expiresIn as unknown as number,
       });
 
       return { accessToken };

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { OrderStatus } from '@scf/shared';
 import { orderService } from '../services/order.service';
 import { sendSuccess, sendPaginated, parsePagination } from '../utils/helpers';
 
@@ -51,7 +52,7 @@ export const orderController = {
   async updateStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const { status } = updateStatusSchema.parse(req.body);
-      const data = await orderService.updateStatus(req.params.id, status);
+      const data = await orderService.updateStatus(req.params.id, status as unknown as OrderStatus);
       sendSuccess(res, data);
     } catch (error) {
       next(error);

@@ -1,5 +1,5 @@
 import { prisma } from './base.repository';
-import { DocumentType, DocumentStatus, MatchStatus } from '@prisma/client';
+import { Prisma, DocumentType, DocumentStatus, MatchStatus } from '@prisma/client';
 
 export const documentRepository = {
   async findAll(skip: number, take: number, filters?: {
@@ -56,6 +56,7 @@ export const documentRepository = {
       where: { id },
       data: {
         ...data,
+        extractedData: data.extractedData as Prisma.InputJsonValue,
         extractedAmount: data.extractedAmount,
       },
     });
@@ -66,7 +67,10 @@ export const documentRepository = {
     matchResult: Record<string, unknown>;
     matchScore: number;
   }) {
-    return prisma.document.update({ where: { id }, data });
+    return prisma.document.update({
+      where: { id },
+      data: { ...data, matchResult: data.matchResult as Prisma.InputJsonValue },
+    });
   },
 
   async updateStatus(id: string, status: DocumentStatus) {
