@@ -1,5 +1,5 @@
 import { prisma } from './base.repository';
-import { CreditStatus } from '@prisma/client';
+import { CreditStatus } from '../generated/prisma/client';
 
 export const creditRepository = {
   async findAll(skip: number, take: number, filters?: { status?: CreditStatus; enterpriseId?: string }) {

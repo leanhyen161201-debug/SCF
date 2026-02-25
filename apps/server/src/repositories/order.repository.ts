@@ -1,5 +1,5 @@
 import { prisma } from './base.repository';
-import { OrderStatus, FinancingStatus } from '@prisma/client';
+import { OrderStatus, FinancingStatus } from '../generated/prisma/client';
 
 export const orderRepository = {
   async findAll(skip: number, take: number, filters?: {

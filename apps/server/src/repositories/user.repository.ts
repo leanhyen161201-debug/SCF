@@ -1,5 +1,5 @@
 import { prisma } from './base.repository';
-import { UserRole, UserStatus } from '@prisma/client';
+import { UserRole, UserStatus } from '../generated/prisma/client';
 
 export const userRepository = {
   async findByEmail(email: string) {

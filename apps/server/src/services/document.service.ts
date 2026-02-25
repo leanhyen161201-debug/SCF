@@ -1,7 +1,7 @@
 import { documentRepository } from '../repositories/document.repository';
 import { NotFoundError } from '../utils/errors';
 import { generateId } from '../utils/helpers';
-import { DocumentType } from '@prisma/client';
+import { DocumentType } from '../generated/prisma/client';
 
 export const documentService = {
   async list(page: number, pageSize: number, filters?: {

@@ -1,5 +1,5 @@
 import { prisma } from './base.repository';
-import { EnterpriseStatus } from '@prisma/client';
+import { EnterpriseStatus } from '../generated/prisma/client';
 
 export const enterpriseRepository = {
   async findAll(skip: number, take: number) {

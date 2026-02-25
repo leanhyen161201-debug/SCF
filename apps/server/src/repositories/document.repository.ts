@@ -1,5 +1,5 @@
 import { prisma } from './base.repository';
-import { DocumentType, DocumentStatus, MatchStatus } from '@prisma/client';
+import { DocumentType, DocumentStatus, MatchStatus } from '../generated/prisma/client';
 
 export const documentRepository = {
   async findAll(skip: number, take: number, filters?: {

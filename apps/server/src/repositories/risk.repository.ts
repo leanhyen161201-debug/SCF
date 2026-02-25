@@ -1,5 +1,5 @@
 import { prisma } from './base.repository';
-import { RiskEventType, RiskEventStatus, RiskSeverity } from '@prisma/client';
+import { RiskEventType, RiskEventStatus, RiskSeverity } from '../generated/prisma/client';
 
 export const riskRepository = {
   async findAll(skip: number, take: number, filters?: {
