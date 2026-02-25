@@ -242,29 +242,33 @@ else
   log "  Prisma $PRISMA_VERSION (<7.4) — url must be in schema.prisma datasource block (skipping 7.4+ url check)"
 fi
 
-# ── 3b-ii: Deep schema validation (npx prisma validate with clean env) ──────
-# Run validate with DATABASE_URL unset to simulate clean Render container env.
-# prisma validate checks schema correctness without connecting to the database.
-log "  Running npx prisma validate --schema=./prisma/schema.prisma (clean env)"
+# ── 3b-ii: Deep schema validation (npx prisma validate with dummy URL) ───────
+# prisma validate checks schema structure without connecting to the database.
+# Prisma 5.x requires DATABASE_URL to be resolvable (even a dummy value) so
+# it can parse the datasource block — it does NOT attempt an actual connection.
+# Using a dummy URL catches real P1012 ("Missing required argument url") while
+# avoiding false P1012 ("Environment variable not found") from a stripped env.
+log "  Running npx prisma validate --schema=./prisma/schema.prisma (dummy URL)"
 PRISMA_VALIDATE_LOG=$(mktemp)
 set +e
 (
   cd "$ROOT_DIR/apps/server"
-  env -u DATABASE_URL npx prisma validate --schema=./prisma/schema.prisma 2>&1
+  DATABASE_URL="postgresql://preflight:check@localhost:5432/preflight_schema_check" \
+    npx prisma validate --schema=./prisma/schema.prisma 2>&1
 ) | tee "$PRISMA_VALIDATE_LOG" | tee -a "$LOG_FILE"
 PRISMA_VALIDATE_EXIT=${PIPESTATUS[0]}
 set -e
 
 if [ $PRISMA_VALIDATE_EXIT -ne 0 ]; then
   VALIDATE_CONTENT=$(cat "$PRISMA_VALIDATE_LOG")
-  if echo "$VALIDATE_CONTENT" | grep -q "P1012"; then
-    fail "P1012 detected: schema validation error in datasource block"
-    fail "  Cause: missing/conflicting 'url' between schema.prisma and prisma.config.ts"
+  if echo "$VALIDATE_CONTENT" | grep -qE "P1012|Missing required argument.*url"; then
+    fail "P1012 detected: 'url' is missing from schema.prisma datasource block"
+    fail "  Fix: ensure 'url = env(\"DATABASE_URL\")' is present and uncommented in schema.prisma"
   else
     fail "Prisma schema validation failed (non-P1012 error — check output above)"
   fi
 else
-  success "Schema valid: npx prisma validate passed in clean environment"
+  success "Schema valid: npx prisma validate passed (schema structure correct)"
 fi
 
 # ── 3b-iii: prisma.config.ts completeness audit ─────────────────────────────
