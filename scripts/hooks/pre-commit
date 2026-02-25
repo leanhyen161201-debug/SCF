@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# SCF Render-Guardian — pre-commit gate
+# Enforces zero-defect delivery: every commit must pass the pre-flight check.
+# To bypass in emergencies only: git commit --no-verify (requires explicit intent)
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+PREFLIGHT="$REPO_ROOT/scripts/pre-flight.sh"
+
+if [ ! -f "$PREFLIGHT" ]; then
+  echo "[pre-commit] WARNING: scripts/pre-flight.sh not found — skipping pre-flight check"
+  exit 0
+fi
+
+echo "[pre-commit] Running Render-Guardian pre-flight check..."
+bash "$PREFLIGHT"
