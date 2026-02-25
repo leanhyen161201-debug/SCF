@@ -239,7 +239,15 @@ if [ "$IS_74_PLUS" = "true" ]; then
     success "Prisma >=7.4 url check: 'url' absent from schema.prisma (correct — url lives in prisma.config.ts)"
   fi
 else
-  log "  Prisma $PRISMA_VERSION (<7.4) — url must be in schema.prisma datasource block (skipping 7.4+ url check)"
+  # Prisma <7.4 — url MUST be present in schema.prisma datasource block (static grep interception)
+  log "  Prisma $PRISMA_VERSION (<7.4) — static grep: schema.prisma must contain 'url ='"
+  SCHEMA_FILE="$ROOT_DIR/apps/server/prisma/schema.prisma"
+  if ! grep -qE '^\s*url\s*=' "$SCHEMA_FILE" 2>/dev/null; then
+    fail "P1012 risk: schema.prisma is missing 'url' in datasource block with Prisma $PRISMA_VERSION (<7.4)"
+    fail "  Fix: add 'url = env(\"DATABASE_URL\")' to the datasource db block in schema.prisma"
+  else
+    success "Prisma <7.4 url check: 'url' present in schema.prisma (correct)"
+  fi
 fi
 
 # ── 3b-ii: Deep schema validation (npx prisma validate with dummy URL) ───────

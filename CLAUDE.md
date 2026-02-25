@@ -38,6 +38,7 @@ the user mentions ANY of the following:
 | Script exit code **1** | **BLOCK** — list every failure, forbid git suggestions |
 | Any TypeScript error | BLOCK immediately |
 | Any build warning | BLOCK (zero-warning policy) |
+| Prisma schema `url` mismatch (static grep scan) | **BLOCK before `prisma generate`** — prevents P1012 from reaching build stage |
 | Prisma generate failure | BLOCK + provide specific remediation steps |
 | Node.js version ≠ 22.x | WARN + flag as potential environment drift |
 
@@ -51,9 +52,16 @@ explicitly re-runs the script and it passes.
 
 1. Run: `bash scripts/pre-flight.sh`
 2. Wait for full output
-3. Parse the "Render Ready Audit Report" table at the end
-4. If any package shows `❌ failed` or `⚠️  warn` → invoke quality gate BLOCK
-5. If all show `✅ pass` → generate the post-success report below
+3. **Static schema scan (before `prisma generate`)** — the script MUST perform version-aware grep
+   interception; `npx prisma validate` alone is insufficient:
+   - Detect installed Prisma version via `node -e "require('prisma/package.json').version"`
+   - If Prisma **≥7.4** AND `grep -qE '^\s*url\s*=' schema.prisma` succeeds → **BLOCK** (P1012 risk;
+     instruct user to move `url` to `prisma.config.ts` and remove it from `schema.prisma`)
+   - If Prisma **<7.4** AND `grep -qE '^\s*url\s*=' schema.prisma` finds nothing → **BLOCK** (P1012
+     risk; instruct user to add `url = env("DATABASE_URL")` to the `datasource db` block)
+4. Parse the "Render Ready Audit Report" table at the end
+5. If any package shows `❌ failed` or `⚠️  warn` → invoke quality gate BLOCK
+6. If all show `✅ pass` → generate the post-success report below
 
 ---
 
@@ -152,6 +160,30 @@ pnpm --filter @scf/web add react
 - If `prisma.config.ts` is introduced, validate against the installed Prisma
   version (requires >=7.x); if incompatible, refactor to inline `schema.prisma`
   generator configuration
+
+### Static Schema Scan (Pre-generate Interception)
+
+Before `npx prisma generate` runs, `pre-flight.sh` MUST perform a grep-based static scan of
+`apps/server/prisma/schema.prisma` and apply the following version-aligned interception logic:
+
+| Detected Prisma | `url =` in `schema.prisma` | Action |
+|---|---|---|
+| **≥7.4** | Found | **BLOCK** — `url` must move to `prisma.config.ts`; remove from schema |
+| **≥7.4** | Absent | ✅ Pass — `url` correctly absent from schema |
+| **<7.4** | Found | ✅ Pass — `url = env("DATABASE_URL")` correctly present |
+| **<7.4** | Absent | **BLOCK** — `url` is missing; add `url = env("DATABASE_URL")` to `datasource db` block |
+
+**Grep command used for detection:**
+
+```bash
+grep -qE '^\s*url\s*=' apps/server/prisma/schema.prisma
+```
+
+**Why grep, not just `prisma validate`?**
+`npx prisma validate` is a slow, runtime-dependent operation and its P1012 error message is
+ambiguous. A static grep fires instantly at line level, emits a precise remediation message, and
+intercepts the mismatch *before* it reaches the generate stage — preventing P1012 from ever
+surfacing as a build-phase failure.
 
 ---
 
