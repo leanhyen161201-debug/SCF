@@ -160,17 +160,17 @@ pnpm --filter @scf/web add react
 
 | Prisma Version | `url` in `schema.prisma` | `prisma.config.ts` required |
 |---|---|---|
-| **<7.4** (current: 5.18.0) | **REQUIRED** — `url = env("DATABASE_URL")` | Optional (not supported <7.x) |
-| **≥7.4** | **FORBIDDEN** — remove from schema | **REQUIRED** — url moves here |
+| **<7.4** | **REQUIRED** — `url = env("DATABASE_URL")` | Optional (not supported <7.x) |
+| **≥7.4** (current: 7.4.1) | **FORBIDDEN** — remove from schema | **REQUIRED** — url moves here |
 
 - **Prisma <7.4**: `url = env("DATABASE_URL")` MUST be in the `datasource db` block of
   `schema.prisma`. Absence causes P1012 on `prisma validate`.
-- **Prisma ≥7.4**: `url` MUST be moved to `prisma.config.ts`. Having `url` in
-  `schema.prisma` with Prisma ≥7.4 causes a P1012 conflict. pre-flight.sh will
-  auto-detect this and FAIL the build.
-- If `prisma.config.ts` is introduced, validate against the installed Prisma
-  version (requires >=7.x); if incompatible, refactor to inline `schema.prisma`
-  generator configuration
+- **Prisma ≥7.4** (current project version: 7.4.1): `url` MUST NOT be in `schema.prisma`.
+  Instead, `prisma.config.ts` must export `defineConfig({ datasourceUrl: process.env.DATABASE_URL })`.
+  Having `url` in `schema.prisma` with Prisma ≥7.4 causes P1012. pre-flight.sh auto-detects and
+  BLOCKs before `prisma generate` runs.
+- `PrismaClient` must pass `datasourceUrl: process.env.DATABASE_URL` explicitly in the constructor
+  since the schema no longer provides the connection URL.
 
 ### Static Schema Scan (Pre-generate Interception)
 
