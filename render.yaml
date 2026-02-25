@@ -15,7 +15,7 @@ services:
     rootDir: .
     buildCommand: >-
       npm install -g pnpm@9 &&
-      pnpm install &&
+      pnpm install --frozen-lockfile &&
       pnpm --filter @scf/shared build &&
       cd apps/server &&
       npx prisma generate &&
@@ -51,7 +51,7 @@ services:
     rootDir: .
     buildCommand: >-
       npm install -g pnpm@9 &&
-      pnpm install &&
+      pnpm install --frozen-lockfile &&
       pnpm --filter @scf/shared build &&
       pnpm --filter @scf/web build
     staticPublishPath: apps/web/dist

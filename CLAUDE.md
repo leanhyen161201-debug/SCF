@@ -39,6 +39,7 @@ the user mentions ANY of the following:
 | Any TypeScript error | BLOCK immediately |
 | Any build warning | BLOCK (zero-warning policy) |
 | Prisma schema `url` mismatch (static grep scan) | **BLOCK before `prisma generate`** — prevents P1012 from reaching build stage |
+| Render Prisma version drift (local ≠ npm latest) | **BLOCK** — if `npm show prisma dist-tags.latest` ≥7.4 but `render.yaml` lacks `--frozen-lockfile`; Render will install a breaking Prisma version that P1012-fails on `url` in schema |
 | Prisma generate failure | BLOCK + provide specific remediation steps |
 | Node.js version ≠ 22.x | WARN + flag as potential environment drift |
 
@@ -59,9 +60,19 @@ explicitly re-runs the script and it passes.
      instruct user to move `url` to `prisma.config.ts` and remove it from `schema.prisma`)
    - If Prisma **<7.4** AND `grep -qE '^\s*url\s*=' schema.prisma` finds nothing → **BLOCK** (P1012
      risk; instruct user to add `url = env("DATABASE_URL")` to the `datasource db` block)
-4. Parse the "Render Ready Audit Report" table at the end
-5. If any package shows `❌ failed` or `⚠️  warn` → invoke quality gate BLOCK
-6. If all show `✅ pass` → generate the post-success report below
+4. **Render drift guard (before `prisma generate`)** — cross-check npm registry against local install:
+   - Run: `npm show prisma dist-tags.latest` to get the registry's current `latest` tag
+   - If registry latest **≥7.4** AND local installed **<7.4** AND `render.yaml` does NOT contain
+     `--frozen-lockfile` → **BLOCK** with message:
+     > "Render version drift: local Prisma X.Y.Z but npm latest is A.B.C (≥7.4).
+     >  render.yaml uses `pnpm install` without `--frozen-lockfile` — Render will install A.B.C
+     >  and P1012 on `url` in schema.prisma.
+     >  Fix A: add `--frozen-lockfile` to `pnpm install` in render.yaml
+     >  Fix B: migrate schema to Prisma ≥7.4 (create `prisma.config.ts`, remove `url` from schema)"
+   - If registry latest **<7.4** OR `render.yaml` has `--frozen-lockfile` → ✅ no drift risk
+5. Parse the "Render Ready Audit Report" table at the end
+6. If any package shows `❌ failed` or `⚠️  warn` → invoke quality gate BLOCK
+7. If all show `✅ pass` → generate the post-success report below
 
 ---
 
@@ -184,6 +195,33 @@ grep -qE '^\s*url\s*=' apps/server/prisma/schema.prisma
 ambiguous. A static grep fires instantly at line level, emits a precise remediation message, and
 intercepts the mismatch *before* it reaches the generate stage — preventing P1012 from ever
 surfacing as a build-phase failure.
+
+### Render Version Drift Risk
+
+Pre-flight runs `pnpm install --frozen-lockfile`, which faithfully reproduces the locked versions.
+However, if `render.yaml` uses `pnpm install` **without** `--frozen-lockfile`, Render re-resolves
+packages from the registry — and if the npm `latest` tag for `prisma` has advanced to ≥7.4, Render
+will install that version even though `^5.x.x` is declared in `package.json`.
+
+**This is the exact failure mode that causes a P1012 on Render while pre-flight passes locally.**
+
+| Root Cause | Symptom | Prevention |
+|---|---|---|
+| `render.yaml`: `pnpm install` (no `--frozen-lockfile`) | Render resolves npm `latest` Prisma, ignoring lockfile | Add `--frozen-lockfile` to render.yaml |
+| `package.json` uses `^` range for prisma | Any major-version publish can become resolvable | Pin exact version: `"prisma": "X.Y.Z"` |
+
+**Required fix — `render.yaml` build command:**
+```bash
+# ❌ Dangerous — Render may install a different Prisma major version
+pnpm install
+
+# ✅ Safe — Render uses exact versions from pnpm-lock.yaml
+pnpm install --frozen-lockfile
+```
+
+**pre-flight.sh enforcement:** The script checks `npm show prisma dist-tags.latest` and compares
+against the locally installed version. If the registry `latest` is ≥7.4 and `render.yaml` lacks
+`--frozen-lockfile`, the build is **BLOCKED** before `prisma generate` runs.
 
 ---
 

@@ -219,6 +219,51 @@ if [ -f "$ROOT_DIR/apps/server/prisma.config.ts" ]; then
   fi
 fi
 
+# ── 3b-0: Render drift guard — npm registry latest vs local installed ────────
+# pre-flight runs with --frozen-lockfile (correct), but render.yaml may use
+# plain 'pnpm install' which lets Render re-resolve to the npm latest tag.
+# If registry latest Prisma is >=7.4 but local is <7.4, Render will P1012.
+log "  Render drift guard: checking npm registry Prisma latest vs installed"
+PRISMA_REGISTRY_LATEST=$(npm show prisma dist-tags.latest 2>/dev/null || echo "unknown")
+log "  npm latest Prisma: $PRISMA_REGISTRY_LATEST  |  local installed: $PRISMA_VERSION"
+
+if [ "$PRISMA_REGISTRY_LATEST" != "unknown" ]; then
+  LATEST_MAJOR=$(echo "$PRISMA_REGISTRY_LATEST" | cut -d. -f1)
+  LATEST_MINOR=$(echo "$PRISMA_REGISTRY_LATEST" | cut -d. -f2)
+  REGISTRY_IS_74_PLUS=false
+  if [ "$LATEST_MAJOR" -gt 7 ] 2>/dev/null; then
+    REGISTRY_IS_74_PLUS=true
+  elif [ "$LATEST_MAJOR" -eq 7 ] && [ "${LATEST_MINOR:-0}" -ge 4 ] 2>/dev/null; then
+    REGISTRY_IS_74_PLUS=true
+  fi
+
+  # Detect if render.yaml uses --frozen-lockfile (safe) or plain pnpm install (risky)
+  RENDER_YAML="$ROOT_DIR/render.yaml"
+  RENDER_USES_FROZEN=false
+  if grep -q "frozen-lockfile" "$RENDER_YAML" 2>/dev/null; then
+    RENDER_USES_FROZEN=true
+  fi
+
+  LOCAL_MAJOR=$(echo "$PRISMA_VERSION" | cut -d. -f1)
+  LOCAL_MINOR=$(echo "$PRISMA_VERSION" | cut -d. -f2)
+  LOCAL_IS_74_PLUS=false
+  if [ "$LOCAL_MAJOR" -gt 7 ] 2>/dev/null; then
+    LOCAL_IS_74_PLUS=true
+  elif [ "$LOCAL_MAJOR" -eq 7 ] && [ "${LOCAL_MINOR:-0}" -ge 4 ] 2>/dev/null; then
+    LOCAL_IS_74_PLUS=true
+  fi
+
+  if [ "$REGISTRY_IS_74_PLUS" = "true" ] && [ "$LOCAL_IS_74_PLUS" = "false" ] && [ "$RENDER_USES_FROZEN" = "false" ]; then
+    fail "Render version drift: local Prisma $PRISMA_VERSION (<7.4) but npm latest is $PRISMA_REGISTRY_LATEST (>=7.4)"
+    fail "  render.yaml uses 'pnpm install' without --frozen-lockfile — Render will install $PRISMA_REGISTRY_LATEST"
+    fail "  and P1012 on 'url' in schema.prisma (url= forbidden in Prisma >=7.4)"
+    fail "  Fix A (recommended): add --frozen-lockfile to pnpm install in render.yaml"
+    fail "  Fix B: migrate schema to Prisma >=7.4 (create prisma.config.ts, remove url from schema.prisma)"
+  else
+    success "Render drift guard: no version drift risk (registry=$PRISMA_REGISTRY_LATEST local=$PRISMA_VERSION frozen=$RENDER_USES_FROZEN)"
+  fi
+fi
+
 # ── 3b-i: Version force-alignment check (Prisma 7.4+ rule) ─────────────────
 # In Prisma >=7.4, url belongs in prisma.config.ts NOT in schema.prisma.
 PRISMA_MINOR=$(echo "$PRISMA_VERSION" | cut -d. -f2)
