@@ -49,7 +49,7 @@ fatal()   {
 # ── Banner ───────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${CYAN}║        SCF Render-Guardian Pre-flight Check v1.0            ║${NC}"
+echo -e "${BOLD}${CYAN}║        SCF Render-Guardian Pre-flight Check v1.1            ║${NC}"
 echo -e "${BOLD}${CYAN}║        Simulating Render Production Build Environment       ║${NC}"
 echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo -e "  Log: ${LOG_FILE}"
@@ -211,11 +211,84 @@ PRISMA_VERSION=$(node -e "
 log "  Prisma version detected: $PRISMA_VERSION"
 
 # Check for prisma.config.ts (Prisma 7.x feature — may cause container incompatibility)
+PRISMA_MAJOR=$(echo "$PRISMA_VERSION" | cut -d. -f1)
 if [ -f "$ROOT_DIR/apps/server/prisma.config.ts" ]; then
-  PRISMA_MAJOR=$(echo "$PRISMA_VERSION" | cut -d. -f1)
   if [ "$PRISMA_MAJOR" -lt 7 ] 2>/dev/null; then
     warn "prisma.config.ts found but Prisma $PRISMA_VERSION (<7.x) may not support it"
     warn "Action required: Remove prisma.config.ts or upgrade Prisma to >=7.x"
+  fi
+fi
+
+# ── 3b-i: Version force-alignment check (Prisma 7.4+ rule) ─────────────────
+# In Prisma >=7.4, url belongs in prisma.config.ts NOT in schema.prisma.
+PRISMA_MINOR=$(echo "$PRISMA_VERSION" | cut -d. -f2)
+IS_74_PLUS=false
+if [ "$PRISMA_MAJOR" -gt 7 ] 2>/dev/null; then
+  IS_74_PLUS=true
+elif [ "$PRISMA_MAJOR" -eq 7 ] && [ "${PRISMA_MINOR:-0}" -ge 4 ] 2>/dev/null; then
+  IS_74_PLUS=true
+fi
+
+if [ "$IS_74_PLUS" = "true" ]; then
+  log "  Prisma >=7.4 detected — checking schema.prisma for leftover url property"
+  SCHEMA_FILE="$ROOT_DIR/apps/server/prisma/schema.prisma"
+  if grep -qE '^\s*url\s*=' "$SCHEMA_FILE" 2>/dev/null; then
+    fail "P1012 risk: schema.prisma still has 'url' in datasource block with Prisma $PRISMA_VERSION (>=7.4)"
+    fail "  Fix: move 'url = env(\"DATABASE_URL\")' to apps/server/prisma.config.ts, remove from schema.prisma"
+  else
+    success "Prisma >=7.4 url check: 'url' absent from schema.prisma (correct — url lives in prisma.config.ts)"
+  fi
+else
+  log "  Prisma $PRISMA_VERSION (<7.4) — url must be in schema.prisma datasource block (skipping 7.4+ url check)"
+fi
+
+# ── 3b-ii: Deep schema validation (npx prisma validate with clean env) ──────
+# Run validate with DATABASE_URL unset to simulate clean Render container env.
+# prisma validate checks schema correctness without connecting to the database.
+log "  Running npx prisma validate --schema=./prisma/schema.prisma (clean env)"
+PRISMA_VALIDATE_LOG=$(mktemp)
+set +e
+(
+  cd "$ROOT_DIR/apps/server"
+  env -u DATABASE_URL npx prisma validate --schema=./prisma/schema.prisma 2>&1
+) | tee "$PRISMA_VALIDATE_LOG" | tee -a "$LOG_FILE"
+PRISMA_VALIDATE_EXIT=${PIPESTATUS[0]}
+set -e
+
+if [ $PRISMA_VALIDATE_EXIT -ne 0 ]; then
+  VALIDATE_CONTENT=$(cat "$PRISMA_VALIDATE_LOG")
+  if echo "$VALIDATE_CONTENT" | grep -q "P1012"; then
+    fail "P1012 detected: schema validation error in datasource block"
+    fail "  Cause: missing/conflicting 'url' between schema.prisma and prisma.config.ts"
+  else
+    fail "Prisma schema validation failed (non-P1012 error — check output above)"
+  fi
+else
+  success "Schema valid: npx prisma validate passed in clean environment"
+fi
+
+# ── 3b-iii: prisma.config.ts completeness audit ─────────────────────────────
+PRISMA_CONFIG_FILE="$ROOT_DIR/apps/server/prisma.config.ts"
+if [ -f "$PRISMA_CONFIG_FILE" ]; then
+  log "  Auditing prisma.config.ts — checking it inherits all datasource config from schema"
+  CONFIG_HAS_URL=false
+  CONFIG_HAS_DATASOURCE=false
+  if grep -qE 'url\s*[:=]' "$PRISMA_CONFIG_FILE" 2>/dev/null; then
+    CONFIG_HAS_URL=true
+  fi
+  if grep -qiE 'datasource|connectionUrl|DATABASE_URL' "$PRISMA_CONFIG_FILE" 2>/dev/null; then
+    CONFIG_HAS_DATASOURCE=true
+  fi
+
+  if [ "$CONFIG_HAS_URL" = "true" ] || [ "$CONFIG_HAS_DATASOURCE" = "true" ]; then
+    success "prisma.config.ts audit: datasource/url configuration present — schema migration complete"
+  else
+    warn "prisma.config.ts found but missing datasource/url configuration"
+    warn "  Expected: url or connectionUrl referencing env('DATABASE_URL')"
+  fi
+else
+  if [ "$IS_74_PLUS" = "true" ]; then
+    warn "Prisma >=7.4 but no prisma.config.ts — url must be in schema.prisma datasource block"
   fi
 fi
 
