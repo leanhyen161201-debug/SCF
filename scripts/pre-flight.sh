@@ -328,6 +328,16 @@ fi
 PRISMA_CONFIG_FILE="$ROOT_DIR/apps/server/prisma.config.ts"
 if [ -f "$PRISMA_CONFIG_FILE" ]; then
   log "  Auditing prisma.config.ts — checking it inherits all datasource config from schema"
+
+  # Ban 'prisma/config' import — this subpath is unresolvable in some pnpm layouts
+  # (Render's plain `pnpm install` without --frozen-lockfile being the primary case).
+  # defineConfig is a no-op wrapper; use a plain object export instead.
+  if grep -v '^\s*//' "$PRISMA_CONFIG_FILE" 2>/dev/null | grep -qE "from ['\"]prisma/config['\"]"; then
+    fail "prisma.config.ts imports from 'prisma/config' — subpath unresolvable in Render pnpm layout"
+    fail "  Fix: remove the import and use a plain export:"
+    fail "       export default { datasource: { url: process.env.DATABASE_URL } }"
+  fi
+
   CONFIG_HAS_URL=false
   CONFIG_HAS_DATASOURCE=false
   if grep -qE 'url\s*[:=]' "$PRISMA_CONFIG_FILE" 2>/dev/null; then

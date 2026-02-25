@@ -40,6 +40,7 @@ the user mentions ANY of the following:
 | Any build warning | BLOCK (zero-warning policy) |
 | Prisma schema `url` mismatch (static grep scan) | **BLOCK before `prisma generate`** — prevents P1012 from reaching build stage |
 | Render Prisma version drift (local ≠ npm latest) | **BLOCK** — if `npm show prisma dist-tags.latest` ≥7.4 but `render.yaml` lacks `--frozen-lockfile`; Render will install a breaking Prisma version that P1012-fails on `url` in schema |
+| `prisma.config.ts` imports `prisma/config` | **BLOCK** — `prisma/config` subpath unresolvable in Render's pnpm layout; use plain `export default { datasource: { url: process.env.DATABASE_URL } }` |
 | Prisma generate failure | BLOCK + provide specific remediation steps |
 | Node.js version ≠ 22.x | WARN + flag as potential environment drift |
 
@@ -166,11 +167,20 @@ pnpm --filter @scf/web add react
 - **Prisma <7.4**: `url = env("DATABASE_URL")` MUST be in the `datasource db` block of
   `schema.prisma`. Absence causes P1012 on `prisma validate`.
 - **Prisma ≥7.4** (current project version: 7.4.1): `url` MUST NOT be in `schema.prisma`.
-  Instead, `prisma.config.ts` must export `defineConfig({ datasourceUrl: process.env.DATABASE_URL })`.
+  Instead, `prisma.config.ts` must use a **plain object export** (no `prisma/config` import):
+  ```typescript
+  export default {
+    datasource: {
+      url: process.env.DATABASE_URL,
+    },
+  }
+  ```
+  The `prisma/config` subpath (`import { defineConfig } from 'prisma/config'`) is **forbidden** —
+  it is unresolvable in Render's pnpm layout and will abort `prisma generate` at config load time.
+  Note: the field is `datasource.url` (nested), NOT `datasourceUrl` (top-level) — `@prisma/config`
+  uses `PrismaConfigShape` with `onExcessProperty: "error"`, so unknown top-level fields are rejected.
   Having `url` in `schema.prisma` with Prisma ≥7.4 causes P1012. pre-flight.sh auto-detects and
   BLOCKs before `prisma generate` runs.
-- `PrismaClient` must pass `datasourceUrl: process.env.DATABASE_URL` explicitly in the constructor
-  since the schema no longer provides the connection URL.
 
 ### Static Schema Scan (Pre-generate Interception)
 
