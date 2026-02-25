@@ -129,6 +129,27 @@ fi
 PNPM_VERSION=$(pnpm -v)
 success "pnpm@$PNPM_VERSION available"
 
+# ── Step 1b: render.yaml NODE_ENV safety check ────────────────────────────
+# Render sets NODE_ENV=production as a service env var (from render.yaml envVars).
+# pnpm install respects NODE_ENV=production and SKIPS devDependencies by default.
+# If the render.yaml buildCommand does not override NODE_ENV before pnpm install,
+# @types/* and other devDependencies will be absent → TypeScript TS7016/TS2580 errors.
+RENDER_YAML="$ROOT_DIR/render.yaml"
+if [ -f "$RENDER_YAML" ]; then
+  # Check if render.yaml declares NODE_ENV=production as a service env var
+  if grep -qE 'key:\s*NODE_ENV' "$RENDER_YAML" && grep -qE 'value:\s*production' "$RENDER_YAML"; then
+    # Check if buildCommand overrides NODE_ENV before pnpm install
+    if ! grep -qE 'NODE_ENV=\s*(&&|pnpm)' "$RENDER_YAML"; then
+      fail "render.yaml sets NODE_ENV=production but pnpm install does not override it"
+      fail "  pnpm skips devDependencies when NODE_ENV=production → @types/* not installed → TS7016"
+      fail "  Fix: prefix pnpm install with NODE_ENV= to clear it:"
+      fail "       NODE_ENV= pnpm install --frozen-lockfile"
+    else
+      success "render.yaml NODE_ENV guard: pnpm install overrides NODE_ENV (devDeps will be installed)"
+    fi
+  fi
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  STEP 2 — Install dependencies (frozen lockfile = strict Render parity)
 # ═════════════════════════════════════════════════════════════════════════════
