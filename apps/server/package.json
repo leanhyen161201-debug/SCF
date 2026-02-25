@@ -9,17 +9,19 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "7.4.1",
     "@prisma/client": "7.4.1",
     "@scf/shared": "workspace:*",
-    "dotenv": "^16.4.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
     "express": "^4.19.0",
     "express-rate-limit": "^7.4.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
+    "pg": "^8.18.0",
     "winston": "^3.14.0",
     "zod": "^3.23.0"
   },
