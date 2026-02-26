@@ -96,6 +96,10 @@ test.describe('核心业务流程 — admin@scf.com', () => {
       body?.data?.user?.email,
       '响应 user.email 应与登录凭据一致',
     ).toBe(ADMIN_EMAIL);
+    expect(
+      body?.data?.user?.role,
+      'admin 用户 role 应为 ADMIN（验证 seed 数据正确性）',
+    ).toBe('ADMIN');
 
     // ── 页面层断言 ──────────────────────────────
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });

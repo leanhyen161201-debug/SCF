@@ -10,12 +10,12 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('Seeding database...');
 
-  // Create users
+  // Create users — update passwordHash on every run so password is always 'password123'
   const passwordHash = await bcrypt.hash('password123', 10);
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@scf.com' },
-    update: {},
+    update: { passwordHash },
     create: {
       username: 'admin',
       email: 'admin@scf.com',
@@ -26,7 +26,7 @@ async function main() {
 
   const riskManager = await prisma.user.upsert({
     where: { email: 'risk@scf.com' },
-    update: {},
+    update: { passwordHash },
     create: {
       username: 'risk_manager',
       email: 'risk@scf.com',
@@ -37,7 +37,7 @@ async function main() {
 
   const creditOfficer = await prisma.user.upsert({
     where: { email: 'credit@scf.com' },
-    update: {},
+    update: { passwordHash },
     create: {
       username: 'credit_officer',
       email: 'credit@scf.com',
@@ -48,7 +48,7 @@ async function main() {
 
   const operator = await prisma.user.upsert({
     where: { email: 'operator@scf.com' },
-    update: {},
+    update: { passwordHash },
     create: {
       username: 'operator',
       email: 'operator@scf.com',
@@ -130,27 +130,30 @@ async function main() {
 
   console.log('Enterprises created:', enterprises.length);
 
-  // Create orders for each enterprise
+  // Create orders — upsert by orderNo (idempotent on re-deploy)
   const now = new Date();
   const orders = [];
 
   for (let i = 0; i < enterprises.length; i++) {
     const ent = enterprises[i];
     for (let j = 0; j < 5; j++) {
+      const orderNo = `ORD-2026${String(i + 1).padStart(2, '0')}-${String(j + 1).padStart(4, '0')}`;
       const createdAt = new Date(now.getTime() - (30 - j * 5) * 24 * 60 * 60 * 1000);
       const dueDate = new Date(createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
       const statuses = ['CREATED', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'COMPLETED'] as const;
       const status = statuses[Math.min(j, statuses.length - 1)];
 
-      const order = await prisma.order.create({
-        data: {
-          orderNo: `ORD-2026${String(i + 1).padStart(2, '0')}-${String(j + 1).padStart(4, '0')}`,
+      const order = await prisma.order.upsert({
+        where: { orderNo },
+        update: {},
+        create: {
+          orderNo,
           enterpriseId: ent.id,
           amount: Math.round((50000 + Math.random() * 200000) * 100) / 100,
           status,
           dueDate,
           overdueDays: 0,
-          isReturned: j === 4 && i === 3, // One returned order for the 4th enterprise
+          isReturned: j === 4 && i === 3,
           createdAt,
         },
       });
@@ -158,14 +161,16 @@ async function main() {
     }
   }
 
-  // Create one overdue order for testing
-  const overdueOrder = await prisma.order.create({
-    data: {
+  // Overdue order — upsert by orderNo
+  const overdueOrder = await prisma.order.upsert({
+    where: { orderNo: 'ORD-202600-OVERDUE' },
+    update: {},
+    create: {
       orderNo: 'ORD-202600-OVERDUE',
       enterpriseId: enterprises[0].id,
       amount: 150000,
       status: 'DELIVERED',
-      dueDate: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+      dueDate: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
       overdueDays: 3,
       financingStatus: 'DISBURSED',
       createdAt: new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000),
@@ -174,10 +179,12 @@ async function main() {
 
   console.log('Orders created:', orders.length + 1);
 
-  // Create credit applications
+  // Create credit applications — upsert by applicationNo (idempotent)
   await Promise.all([
-    prisma.creditApplication.create({
-      data: {
+    prisma.creditApplication.upsert({
+      where: { applicationNo: 'CA-20260101-0001' },
+      update: {},
+      create: {
         applicationNo: 'CA-20260101-0001',
         enterpriseId: enterprises[0].id,
         requestedAmount: 500000,
@@ -188,16 +195,20 @@ async function main() {
         reviewedAt: new Date(),
       },
     }),
-    prisma.creditApplication.create({
-      data: {
+    prisma.creditApplication.upsert({
+      where: { applicationNo: 'CA-20260115-0002' },
+      update: {},
+      create: {
         applicationNo: 'CA-20260115-0002',
         enterpriseId: enterprises[1].id,
         requestedAmount: 800000,
         status: 'PENDING',
       },
     }),
-    prisma.creditApplication.create({
-      data: {
+    prisma.creditApplication.upsert({
+      where: { applicationNo: 'CA-20260201-0003' },
+      update: {},
+      create: {
         applicationNo: 'CA-20260201-0003',
         enterpriseId: enterprises[2].id,
         requestedAmount: 300000,
@@ -208,7 +219,7 @@ async function main() {
 
   console.log('Credit applications created');
 
-  // Create credit limits
+  // Create credit limits — already upsert ✅
   await Promise.all([
     prisma.creditLimit.upsert({
       where: { enterpriseId: enterprises[0].id },
@@ -262,8 +273,11 @@ async function main() {
 
   console.log('Credit limits created');
 
-  // Create sample e-commerce flows
+  // Create e-commerce flows — skip if data already exists for each enterprise (idempotent)
   for (const ent of enterprises.slice(0, 3)) {
+    const existing = await prisma.ecommerceFlow.count({ where: { enterpriseId: ent.id } });
+    if (existing > 0) continue;
+
     for (let month = 0; month < 3; month++) {
       for (let tx = 0; tx < 15; tx++) {
         const txDate = new Date(now.getFullYear(), now.getMonth() - month, 1 + tx * 2);
@@ -283,9 +297,11 @@ async function main() {
 
   console.log('E-commerce flows created');
 
-  // Create sample documents
-  const contractDoc = await prisma.document.create({
-    data: {
+  // Create documents — upsert by documentNo (idempotent)
+  await prisma.document.upsert({
+    where: { documentNo: 'DOC-20260101-0001' },
+    update: {},
+    create: {
       documentNo: 'DOC-20260101-0001',
       type: 'CONTRACT',
       orderId: orders[0].id,
@@ -308,8 +324,10 @@ async function main() {
     },
   });
 
-  const invoiceDoc = await prisma.document.create({
-    data: {
+  await prisma.document.upsert({
+    where: { documentNo: 'DOC-20260101-0002' },
+    update: {},
+    create: {
       documentNo: 'DOC-20260101-0002',
       type: 'INVOICE',
       orderId: orders[0].id,
@@ -333,8 +351,10 @@ async function main() {
     },
   });
 
-  const logisticsDoc = await prisma.document.create({
-    data: {
+  await prisma.document.upsert({
+    where: { documentNo: 'DOC-20260101-0003' },
+    update: {},
+    create: {
       documentNo: 'DOC-20260101-0003',
       type: 'LOGISTICS_BILL',
       orderId: orders[0].id,
@@ -358,11 +378,13 @@ async function main() {
     },
   });
 
-  console.log('Documents created:', { contractDoc: contractDoc.id, invoiceDoc: invoiceDoc.id, logisticsDoc: logisticsDoc.id });
+  console.log('Documents created');
 
-  // Create sample risk events
-  await prisma.riskEvent.create({
-    data: {
+  // Create risk events — upsert by eventNo (idempotent)
+  await prisma.riskEvent.upsert({
+    where: { eventNo: 'RE-20260201-0001' },
+    update: {},
+    create: {
       eventNo: 'RE-20260201-0001',
       enterpriseId: enterprises[0].id,
       type: 'OVERDUE',
@@ -376,8 +398,10 @@ async function main() {
     },
   });
 
-  await prisma.riskEvent.create({
-    data: {
+  await prisma.riskEvent.upsert({
+    where: { eventNo: 'RE-20260201-0002' },
+    update: {},
+    create: {
       eventNo: 'RE-20260201-0002',
       enterpriseId: enterprises[3].id,
       type: 'HIGH_RETURN_RATE',
