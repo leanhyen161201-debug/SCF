@@ -24,8 +24,8 @@ export default function CreditListPage() {
   const [filters, setFilters] = useState<Record<string, unknown>>({});
   const { data, isLoading } = useCreditList(filters);
 
-  const list: CreditApplication[] = (data as any)?.data ?? (data as any)?.list ?? [];
-  const total: number = (data as any)?.total ?? list.length;
+  const list: CreditApplication[] = (data as any)?.data?.items ?? (data as any)?.data ?? (data as any)?.list ?? [];
+  const total: number = (data as any)?.data?.total ?? (data as any)?.total ?? list.length;
 
   const columns: ColumnsType<CreditApplication> = [
     {

@@ -47,7 +47,9 @@ async function loginAdmin(page: Page): Promise<void> {
     { timeout: 15_000 },
   );
 
-  await page.getByRole('button', { name: '登录' }).click();
+  // Ant Design 对双字中文按钮自动插入空格，实际渲染为 "登 录"
+  // 使用正则兼容两种形式: "登录" / "登 录"
+  await page.getByRole('button', { name: /登.?录/ }).click();
 
   await loginDone;
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
@@ -80,7 +82,8 @@ test.describe('核心业务流程 — admin@scf.com', () => {
       { timeout: 15_000 },
     );
 
-    await page.getByRole('button', { name: '登录' }).click();
+    // Ant Design 对双字中文按钮自动插入空格，实际渲染为 "登 录"
+    await page.getByRole('button', { name: /登.?录/ }).click();
 
     const loginResponse = await loginResponsePromise;
 
@@ -190,7 +193,10 @@ test.describe('核心业务流程 — admin@scf.com', () => {
       // ── 页面层断言: 数据行（依赖种子数据） ──────
       // prisma/seed.ts 预置了 3 条授信申请
       // 使用 API 返回的 total 保持测试与种子数据解耦
+      // API 返回格式: { success, data: { items, total, page, pageSize } }
+      // 先读嵌套 data.total，兼容扁平 total 和直接列表三种格式
       const total: number =
+        creditsBody?.data?.total ??
         creditsBody?.total ??
         creditsBody?.data?.length ??
         creditsBody?.list?.length ??
