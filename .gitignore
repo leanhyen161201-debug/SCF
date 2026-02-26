@@ -11,3 +11,8 @@ coverage/
 uploads/
 prisma/*.db
 *.tsbuildinfo
+
+# Playwright
+packages/testing/test-results/
+packages/testing/playwright-report/
+packages/testing/.playwright-artifacts/

@@ -11,6 +11,10 @@
     },
     "lint": {
       "dependsOn": ["^build"]
+    },
+    "test:e2e": {
+      "dependsOn": ["@scf/shared#build"],
+      "cache": false
     }
   }
 }
