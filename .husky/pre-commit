@@ -1,0 +1,73 @@
+#!/bin/sh
+# ──────────────────────────────────────────────────────────────────────────────
+#  SCF Pre-commit Hook
+#  Runs automatically before every `git commit`.
+#
+#  Stage 1 — TypeScript type check (lint-staged, ~5-15s)
+#             Only checks packages with staged .ts/.tsx files.
+#
+#  Stage 2 — Playwright E2E tests (pnpm test:e2e, ~60s)
+#             Starts backend + frontend via webServer config if not running.
+#             Blocks commit on ANY test failure.
+#
+#  Requirements:
+#    - DATABASE_URL must be set (backend needs DB for auth/data tests)
+#    - First run: `pnpm --filter @scf/testing exec playwright install chromium`
+#
+#  Skip all checks (WIP commits only):
+#    git commit --no-verify
+# ──────────────────────────────────────────────────────────────────────────────
+
+set -e  # Exit immediately on any error
+
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+RESET='\033[0m'
+
+echo ""
+echo "${CYAN}${BOLD}┌─────────────────────────────────────────────┐${RESET}"
+echo "${CYAN}${BOLD}│          SCF Pre-commit Hook                 │${RESET}"
+echo "${CYAN}${BOLD}└─────────────────────────────────────────────┘${RESET}"
+echo ""
+
+# ── Stage 1: TypeScript check (lint-staged) ───────────────────────────────────
+echo "${BOLD}▶  Stage 1/2 — TypeScript check (lint-staged)${RESET}"
+
+pnpm lint-staged
+
+echo "${GREEN}   ✔  TypeScript OK${RESET}"
+echo ""
+
+# ── Stage 2: E2E tests (Playwright) ──────────────────────────────────────────
+echo "${BOLD}▶  Stage 2/2 — E2E tests (pnpm test:e2e)${RESET}"
+echo "${YELLOW}   ⏱  Expected ~60s — servers will auto-start if not already running${RESET}"
+echo ""
+
+# Use || { } so set -e does not swallow the failure before we can print the
+# error report. The block runs only when pnpm test:e2e exits non-zero.
+pnpm test:e2e || {
+  echo ""
+  echo "${RED}${BOLD}╔═══════════════════════════════════════════════╗${RESET}"
+  echo "${RED}${BOLD}║   ❌  E2E TESTS FAILED — COMMIT BLOCKED       ║${RESET}"
+  echo "${RED}${BOLD}╚═══════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo "  ${BOLD}View full HTML report:${RESET}"
+  echo "  ${CYAN}pnpm --filter @scf/testing test:e2e:report${RESET}"
+  echo ""
+  echo "  ${BOLD}Re-run tests in interactive UI mode:${RESET}"
+  echo "  ${CYAN}pnpm --filter @scf/testing test:e2e:ui${RESET}"
+  echo ""
+  echo "  ${BOLD}After fixing, retry:${RESET}"
+  echo "  ${CYAN}git commit${RESET}"
+  echo ""
+  echo "  ${YELLOW}Skip for WIP commits only:  git commit --no-verify${RESET}"
+  echo ""
+  exit 1
+}
+
+echo ""
+echo "${GREEN}${BOLD}✅  All checks passed — proceeding with commit.${RESET}"
+echo ""
