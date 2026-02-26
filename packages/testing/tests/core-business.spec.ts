@@ -223,4 +223,49 @@ test.describe('核心业务流程 — admin@scf.com', () => {
       }
     },
   );
+
+  // ────────────────────────────────────────────
+  // T-04  无效凭据登录 — 服务器端配置健康验证
+  // ────────────────────────────────────────────
+  test('T-04 登录: 无效凭据 → 后端返回 401，非 500', async ({ page }) => {
+    // 此测试同时验证两个生产问题的修复：
+    //   1. trust proxy 未设置 → express-rate-limit 崩溃 → 500
+    //   2. 正确凭据但 seed 未运行 → 用户不存在 → 401
+    // 若 trust proxy 配置异常导致 rate-limiter 抛出未捕获异常，返回 500 → 测试失败
+    // 若服务器正常，无效凭据必须返回 401
+    await page.goto('/login');
+
+    await page.locator('#email').fill('notexist@scf.com');
+    await page.locator('#password').fill('wrongpassword');
+
+    const responsePromise = page.waitForResponse(
+      (res) =>
+        res.url().includes('/api/auth/login') &&
+        res.request().method() === 'POST',
+      { timeout: 15_000 },
+    );
+
+    await page.getByRole('button', { name: /登.?录/ }).click();
+
+    const resp = await responsePromise;
+
+    // Buffer body as text BEFORE any assertions — Playwright/CDP may GC the
+    // response resource reference after the page re-renders on login failure.
+    const statusCode = resp.status();
+    let body: Record<string, unknown> | null = null;
+    try {
+      body = await resp.json();
+    } catch {
+      // CDP GC tolerated here — statusCode assertion below is the primary check
+    }
+
+    expect(
+      statusCode,
+      '无效凭据应返回 401（非 500 — 500 表示 trust proxy 配置异常）',
+    ).toBe(401);
+
+    if (body !== null) {
+      expect(body?.success, '响应体 success 字段应为 false').toBe(false);
+    }
+  });
 });

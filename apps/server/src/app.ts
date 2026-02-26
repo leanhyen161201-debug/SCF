@@ -7,6 +7,10 @@ import { registerRoutes } from './routes';
 
 const app = express();
 
+// Trust Render's load balancer — required for express-rate-limit to correctly
+// identify client IPs from the X-Forwarded-For header (prevents ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(cors({
